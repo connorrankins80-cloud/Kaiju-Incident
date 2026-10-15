@@ -12,7 +12,7 @@ function sanitizeEmbedText(text = '') {
   }
 
   return text
-    .replace(EMOJI_REGEX, '')
+    // Preserve emojis; do not reference an undefined EMOJI_REGEX.
     .replace(/[ \t]+/g, ' ')
     .replace(/[ \t]\n/g, '\n')
     .replace(/\n[ \t]/g, '\n')
@@ -42,7 +42,10 @@ EmbedBuilder.prototype.setTitle = function setSanitizedTitle(title) {
 
 EmbedBuilder.prototype.setAuthor = function setSanitizedAuthor(author) {
   if (typeof author === 'string') {
-    return originalSetAuthor.call(this, sanitizeEmbedText(author));
+    return originalSetAuthor.call(
+      this,
+      sanitizeEmbedText(author)
+    );
   }
 
   if (author && typeof author.name === 'string') {
@@ -55,9 +58,15 @@ EmbedBuilder.prototype.setAuthor = function setSanitizedAuthor(author) {
   return originalSetAuthor.call(this, author);
 };
 
-EmbedBuilder.prototype.addFields = function addSanitizedFields(...fields) {
-  const normalized = fields.flatMap((field) => (Array.isArray(field) ? field : [field]));
+EmbedBuilder.prototype.addFields = function addSanitizedFields(
+  ...fields
+) {
+  const normalized = fields.flatMap((field) =>
+    Array.isArray(field) ? field : [field]
+  );
+
   const sanitized = normalized.map(sanitizeEmbedField);
+
   return originalAddFields.call(this, sanitized);
 };
 
@@ -83,31 +92,44 @@ function isImportantFooter(footerText) {
   }
 
   const normalized = footerText.toLowerCase();
-  return /\b(close|closes|closed|expire|expires|available in|page\s+\d+|dashboard closes|ticket id)\b/.test(normalized);
+
+  return /\b(close|closes|closed|expire|expires|available in|page\s+\d+|dashboard closes|ticket id)\b/.test(
+    normalized
+  );
 }
 
 const originalSetDescription = EmbedBuilder.prototype.setDescription;
 const originalSetFooter = EmbedBuilder.prototype.setFooter;
 const originalSetTimestamp = EmbedBuilder.prototype.setTimestamp;
 
-EmbedBuilder.prototype.setDescription = function(description = '') {
+EmbedBuilder.prototype.setDescription = function (
+  description = ''
+) {
   const descString = sanitizeEmbedText(description || '');
+
   this[EMBED_BASE_DESCRIPTION_SYMBOL] = descString;
+
   return originalSetDescription.call(this, descString);
 };
 
-EmbedBuilder.prototype.setFooter = function(footer) {
-  const footerText = sanitizeEmbedText(normalizeFooterText(footer));
+EmbedBuilder.prototype.setFooter = function (footer) {
+  const footerText = sanitizeEmbedText(
+    normalizeFooterText(footer)
+  );
+
   if (!footerText || !isImportantFooter(footerText)) {
     return this;
   }
 
   this[EMBED_FOOTER_SYMBOL] = footerText;
-  return originalSetFooter.call(this, { text: footerText });
+
+  return originalSetFooter.call(this, {
+    text: footerText,
+  });
 };
 
-EmbedBuilder.prototype.setTimestamp = function() {
-  return this;
+EmbedBuilder.prototype.setTimestamp = function (timestamp) {
+  return originalSetTimestamp.call(this, timestamp);
 };
 
 export function createEmbed({
@@ -120,15 +142,23 @@ export function createEmbed({
   thumbnail = null,
   image = null,
   timestamp = false,
-  url = null
+  url = null,
 } = {}) {
   const embed = new EmbedBuilder();
 
-  if (title && typeof title === 'string' && title.length > 0) {
+  if (
+    title &&
+    typeof title === 'string' &&
+    title.length > 0
+  ) {
     embed.setTitle(title.substring(0, 256));
   }
 
-  if (description && typeof description === 'string' && description.length > 0) {
+  if (
+    description &&
+    typeof description === 'string' &&
+    description.length > 0
+  ) {
     embed.setDescription(description.substring(0, 4096));
   }
 
@@ -140,57 +170,89 @@ export function createEmbed({
   }
 
   if (Array.isArray(fields) && fields.length > 0) {
-    const validFields = fields.filter(f => f && f.name && f.value);
+    const validFields = fields.filter(
+      (field) => field && field.name && field.value
+    );
+
     if (validFields.length > 0) {
-      embed.addFields(validFields.slice(0, 25)); 
+      embed.addFields(validFields.slice(0, 25));
     }
   }
 
   if (author) {
     try {
-      if (typeof author === 'string' && author.length > 0) {
-        embed.setAuthor({ name: author.substring(0, 256) });
-      } else if (author && typeof author.name === 'string') {
+      if (
+        typeof author === 'string' &&
+        author.length > 0
+      ) {
+        embed.setAuthor({
+          name: author.substring(0, 256),
+        });
+      } else if (
+        author &&
+        typeof author.name === 'string'
+      ) {
         embed.setAuthor(author);
       }
     } catch (error) {
-      
+      // Ignore invalid author data.
     }
   } else if (botConfig.embeds?.author?.name) {
     embed.setAuthor({
       name: botConfig.embeds.author.name,
-      ...(botConfig.embeds.author.icon ? { iconURL: botConfig.embeds.author.icon } : {}),
-      ...(botConfig.embeds.author.url ? { url: botConfig.embeds.author.url } : {}),
+      ...(botConfig.embeds.author.icon
+        ? { iconURL: botConfig.embeds.author.icon }
+        : {}),
+      ...(botConfig.embeds.author.url
+        ? { url: botConfig.embeds.author.url }
+        : {}),
     });
   }
 
   if (footer) {
     try {
-      if (typeof footer === 'string' && footer.length > 0) {
-        embed.setFooter({ text: footer.substring(0, 2048) });
-      } else if (footer && typeof footer.text === 'string') {
+      if (
+        typeof footer === 'string' &&
+        footer.length > 0
+      ) {
+        embed.setFooter({
+          text: footer.substring(0, 2048),
+        });
+      } else if (
+        footer &&
+        typeof footer.text === 'string'
+      ) {
         embed.setFooter(footer);
       }
     } catch (error) {
-      
+      // Ignore invalid footer data.
     }
   } else if (botConfig.embeds?.footer?.text) {
     const defaultFooter = {
       text: botConfig.embeds.footer.text,
-      ...(botConfig.embeds.footer.icon ? { iconURL: botConfig.embeds.footer.icon } : {}),
+      ...(botConfig.embeds.footer.icon
+        ? { iconURL: botConfig.embeds.footer.icon }
+        : {}),
     };
+
     embed.setFooter(defaultFooter);
   }
 
   if (thumbnail) {
     try {
-      if (typeof thumbnail === 'string' && thumbnail.length > 0) {
+      if (
+        typeof thumbnail === 'string' &&
+        thumbnail.length > 0
+      ) {
         embed.setThumbnail(thumbnail);
-      } else if (thumbnail && typeof thumbnail.url === 'string') {
+      } else if (
+        thumbnail &&
+        typeof thumbnail.url === 'string'
+      ) {
         embed.setThumbnail(thumbnail.url);
       }
     } catch (error) {
-      
+      // Ignore invalid thumbnail data.
     }
   } else if (botConfig.embeds?.thumbnail) {
     embed.setThumbnail(botConfig.embeds.thumbnail);
@@ -198,13 +260,19 @@ export function createEmbed({
 
   if (image) {
     try {
-      if (typeof image === 'string' && image.length > 0) {
+      if (
+        typeof image === 'string' &&
+        image.length > 0
+      ) {
         embed.setImage(image);
-      } else if (image && typeof image.url === 'string') {
+      } else if (
+        image &&
+        typeof image.url === 'string'
+      ) {
         embed.setImage(image.url);
       }
     } catch (error) {
-      
+      // Ignore invalid image data.
     }
   }
 
@@ -214,11 +282,15 @@ export function createEmbed({
     embed.setTimestamp(timestamp);
   }
 
-  if (url && typeof url === 'string' && url.length > 0) {
+  if (
+    url &&
+    typeof url === 'string' &&
+    url.length > 0
+  ) {
     try {
       embed.setURL(url);
     } catch (error) {
-      
+      // Ignore invalid URL data.
     }
   }
 
@@ -251,15 +323,28 @@ const USER_ERROR_COLORS = {
 
 /**
  * Build a consistent user-facing error embed.
- * @param {string} errorType - Error category key (e.g. validation, permission)
- * @param {string} [description] - Specific, actionable message for the user
+ *
+ * @param {string} errorType
+ * @param {string} [description]
  * @param {{ titleOverride?: string }} [options]
  */
-export function buildUserErrorEmbed(errorType, description = '', options = {}) {
+export function buildUserErrorEmbed(
+  errorType,
+  description = '',
+  options = {}
+) {
   const type = errorType || 'unknown';
-  const title = options.titleOverride || USER_ERROR_TITLES[type] || USER_ERROR_TITLES.unknown;
+
+  const title =
+    options.titleOverride ||
+    USER_ERROR_TITLES[type] ||
+    USER_ERROR_TITLES.unknown;
+
   const color = USER_ERROR_COLORS[type] || 'error';
-  const body = description ? String(description).trim() : undefined;
+
+  const body = description
+    ? String(description).trim()
+    : undefined;
 
   return createEmbed({
     title,
@@ -269,16 +354,31 @@ export function buildUserErrorEmbed(errorType, description = '', options = {}) {
 }
 
 function containsDiscordRenderable(content = '') {
-  return /<@!?&?\d+>|<#\d+>|\b\d{17,19}\b/.test(String(content));
+  return /<@!?&?\d+>|<#\d+>|\b\d{17,19}\b/.test(
+    String(content)
+  );
 }
 
-function buildNotificationEmbed(title, body = '', color = 'primary') {
-  const defaultTitle = NOTIFICATION_DEFAULT_TITLES[color] || NOTIFICATION_DEFAULT_TITLES.primary;
+function buildNotificationEmbed(
+  title,
+  body = '',
+  color = 'primary'
+) {
+  const defaultTitle =
+    NOTIFICATION_DEFAULT_TITLES[color] ||
+    NOTIFICATION_DEFAULT_TITLES.primary;
+
   let titleText = String(title || '').trim();
   let bodyText = body ? String(body).trim() : '';
 
-  if (titleText && containsDiscordRenderable(titleText)) {
-    bodyText = bodyText ? `${titleText}\n\n${bodyText}` : titleText;
+  if (
+    titleText &&
+    containsDiscordRenderable(titleText)
+  ) {
+    bodyText = bodyText
+      ? `${titleText}\n\n${bodyText}`
+      : titleText;
+
     titleText = defaultTitle;
   }
 
@@ -290,48 +390,99 @@ function buildNotificationEmbed(title, body = '', color = 'primary') {
 }
 
 /**
- * @deprecated Prefer buildUserErrorEmbed or replyUserError from errorHandler.js.
+ * @deprecated Prefer buildUserErrorEmbed or replyUserError.
  */
-export function errorEmbed(title, detail = null, options = {}) {
-  const { showDetails = process.env.NODE_ENV !== 'production' } = options;
+export function errorEmbed(
+  title,
+  detail = null,
+  options = {}
+) {
+  const {
+    showDetails = process.env.NODE_ENV !== 'production',
+  } = options;
+
   let body = detail;
 
-  if (detail && showDetails && typeof detail !== 'string') {
+  if (
+    detail &&
+    showDetails &&
+    typeof detail !== 'string'
+  ) {
     const detailText = detail.message || String(detail);
     body = formatCodeBlock(detailText);
   }
 
-  const description = body ? String(body).trim() : '';
-  const titleOverride = title && title !== 'Error' ? title : undefined;
+  const description = body
+    ? String(body).trim()
+    : '';
 
-  return buildUserErrorEmbed('unknown', description, { titleOverride });
+  const titleOverride =
+    title && title !== 'Error'
+      ? title
+      : undefined;
+
+  return buildUserErrorEmbed(
+    'unknown',
+    description,
+    { titleOverride }
+  );
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
+/**
+ * @param {string} titleOrBody
+ */
 export function successEmbed(title, body = '') {
   if (arguments.length === 1) {
-    return buildNotificationEmbed('Success', title, 'success');
+    return buildNotificationEmbed(
+      'Success',
+      title,
+      'success'
+    );
   }
 
-  return buildNotificationEmbed(title || 'Success', body, 'success');
+  return buildNotificationEmbed(
+    title || 'Success',
+    body,
+    'success'
+  );
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
+/**
+ * @param {string} titleOrBody
+ */
 export function infoEmbed(title, body = '') {
   if (arguments.length === 1) {
-    return buildNotificationEmbed('Information', title, 'info');
+    return buildNotificationEmbed(
+      'Information',
+      title,
+      'info'
+    );
   }
 
-  return buildNotificationEmbed(title || 'Information', body, 'info');
+  return buildNotificationEmbed(
+    title || 'Information',
+    body,
+    'info'
+  );
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
+/**
+ * @param {string} titleOrBody
+ */
 export function warningEmbed(title, body = '') {
   if (arguments.length === 1) {
-    return buildNotificationEmbed('Warning', title, 'warning');
+    return buildNotificationEmbed(
+      'Warning',
+      title,
+      'warning'
+    );
   }
 
-  return buildNotificationEmbed(title || 'Warning', body, 'warning');
+  return buildNotificationEmbed(
+    title || 'Warning',
+    body,
+    'warning'
+  );
 }
 
 export function formatUser(user) {
@@ -380,12 +531,17 @@ export function formatQuote(content) {
 
 export function formatList(items, ordered = false) {
   return items
-    .map((item, index) => (ordered ? `${index + 1}.` : '•') + `${item}`)
+    .map(
+      (item, index) =>
+        (ordered ? `${index + 1}.` : '•') + `${item}`
+    )
     .join('\n');
 }
 
 export function formatDuration(ms) {
-  if (ms < 0) return '0s';
+  if (ms < 0) {
+    return '0s';
+  }
 
   const seconds = Math.floor(ms / 1000) % 60;
   const minutes = Math.floor(ms / (1000 * 60)) % 60;
@@ -393,17 +549,30 @@ export function formatDuration(ms) {
   const days = Math.floor(ms / (1000 * 60 * 60 * 24));
 
   const parts = [];
+
   if (days > 0) parts.push(`${days}d`);
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0) parts.push(`${minutes}m`);
-  if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+
+  if (seconds > 0 || parts.length === 0) {
+    parts.push(`${seconds}s`);
+  }
 
   return parts.join('');
 }
 
-export function formatProgressBar(current, max, size = 10) {
-  const progress = Math.min(Math.max(0, current / max), 1);
+export function formatProgressBar(
+  current,
+  max,
+  size = 10
+) {
+  const progress = Math.min(
+    Math.max(0, current / max),
+    1
+  );
+
   const filled = Math.round(size * progress);
   const empty = size - filled;
+
   return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${Math.round(progress * 100)}%`;
 }
