@@ -2,7 +2,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { getColor, botConfig } from '../config/bot.js';
-;
+
 const EMBED_FOOTER_SYMBOL = Symbol('titanbotFooterText');
 const EMBED_BASE_DESCRIPTION_SYMBOL = Symbol('titanbotBaseDescription');
 
@@ -18,7 +18,6 @@ function sanitizeEmbedText(text = '') {
     .replace(/\n[ \t]/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-}
 }
 
 function sanitizeEmbedField(field) {
